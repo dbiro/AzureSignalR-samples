@@ -80,7 +80,7 @@
                 return entry;
             }
 
-            function bindConnectionMessage(connection) {
+            function bindConnectionMessage(connection, hubMethodName) {
                 var messageCallback = function(name, message) {
                     if (!message) return;
                     // Html encode display name and message.
@@ -93,18 +93,17 @@
                     messageBox.scrollTop = messageBox.scrollHeight;
                 };
                 // Create a function that the hub can call to broadcast messages.
-                connection.on('broadcastMessage', messageCallback);
-                connection.on('echo', messageCallback);
+                connection.on(hubMethodName, messageCallback);                
                 connection.onclose(onConnectionError);
             }
 
-            function onConnected(connection) {
-                console.log('connection started');
-                connection.send('broadcastMessage', '_SYSTEM_', username + ' JOINED');
+            function onChatHubConnected(chatHubConnection) {
+                console.log('chat connection started');
+                chatHubConnection.send('broadcastMessage', '_SYSTEM_', username + ' JOINED');
                 document.getElementById('sendmessage').addEventListener('click', function (event) {
                     // Call the broadcastMessage method on the hub.
                     if (messageInput.value) {
-                        connection.send('broadcastMessage', username, messageInput.value);
+                        chatHubConnection.send('broadcastMessage', username, messageInput.value);
                     }
 
                     // Clear text box and reset focus for next comment.
@@ -118,10 +117,16 @@
                         document.getElementById('sendmessage').click();
                         return false;
                     }
-                });
+                });                
+            }
+
+            function onEchoHubConnected(echoHubConnection) {
+                console.log('echo connection started');
+                echoHubConnection.send('echo', '_SYSTEM_', 'ECHO CONNECTED');
+                
                 document.getElementById('echo').addEventListener('click', function (event) {
                     // Call the echo method on the hub.
-                    connection.send('echo', username, messageInput.value);
+                    echoHubConnection.send('echo', username, messageInput.value);
 
                     // Clear text box and reset focus for next comment.
                     messageInput.value = '';
@@ -139,13 +144,25 @@
                 modal.style = 'display: block;';
             }
 
-            var connection = new signalR.HubConnectionBuilder()
+            var chatHubConnection = new signalR.HubConnectionBuilder()
                                         .withUrl('/chat')
                                         .build();
-            bindConnectionMessage(connection);
-            connection.start()
+            bindConnectionMessage(chatHubConnection, 'broadcastMessage');
+            chatHubConnection.start()
                 .then(function () {
-                    onConnected(connection);
+                    onChatHubConnected(chatHubConnection);
+                })
+                .catch(function (error) {
+                    console.error(error.message);
+                });
+
+            var echoHubConnection = new signalR.HubConnectionBuilder()
+                                        .withUrl('/echo')
+                                        .build();
+            bindConnectionMessage(echoHubConnection, 'echo');
+            echoHubConnection.start()
+                .then(function () {
+                    onEchoHubConnected(echoHubConnection);
                 })
                 .catch(function (error) {
                     console.error(error.message);
